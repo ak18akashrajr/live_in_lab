@@ -13,15 +13,18 @@ print("Model runs on", device.type)
 class PortMonitoring(Camera):
     def __init__(self, boat_model, hin_model=None, encroachment_model=None):
         super().__init__()
-        self.boat_model = YOLO(boat_model).to(device)
+        self.boat_model = YOLO(boat_model)
+        self.boat_model.to(device)
         
         if hin_model:
-            self.hin_model = YOLO(hin_model).to(device)
+            self.hin_model = YOLO(hin_model)
+            self.hin_model.to(device)
         else:
             self.hin_model = None
             
         if encroachment_model:
-            self.encroachment_model = YOLO(encroachment_model).to(device)
+            self.encroachment_model = YOLO(encroachment_model)
+            self.encroachment_model.to(device)
         else:
             self.encroachment_model = None
     
