@@ -16,9 +16,21 @@ class ForestMonitoring(Camera):
     """
     def __init__(self, deforestation_model, wildfire_model):
         super().__init__()
+        # Debug prints for model paths
+        print(f"Loading deforestation model from: {deforestation_model}")
+        print(f"Deforestation model exists: {os.path.exists(deforestation_model)}")
+        print(f"Loading wildfire model from: {wildfire_model}")
+        print(f"Wildfire model exists: {os.path.exists(wildfire_model)}")
+        
         # Load the models
-        self.deforestation_model = YOLO(deforestation_model).to(device)
-        self.wildfire_model = YOLO(wildfire_model).to(device)
+        # Load the models
+        self.deforestation_model = YOLO(deforestation_model)
+        self.wildfire_model = YOLO(wildfire_model)
+
+        # Move models to the specified device
+        self.deforestation_model.to(device)
+        self.wildfire_model.to(device)
+
     
     def get_json_data(self):
         """
@@ -52,16 +64,22 @@ class ForestMonitoring(Camera):
         Process a single image file instead of using the camera.
         Returns a JSON with detection results.
         """
+        # Debug prints for image path
+        print(f"Processing image from: {image_path}")
+        print(f"Image exists: {os.path.exists(image_path)}")
+        
         # Read the image file
         img = cv2.imread(image_path)
         if img is None:
             raise ValueError(f"Image not found or could not be read: {image_path}")
         
         # Run the deforestation detection model
-        deforestation_results = self.deforestation_model(img)
         
-        # Run the wildfire detection model
-        wildfire_results = self.wildfire_model(img)
+        # Run the deforestation detection model using the dedicated inference method
+        deforestation_results = self.deforestation_model.predict(img)
+        wildfire_results = self.wildfire_model.predict(img)
+        
+
         
         # Check if deforestation is detected
         deforestation_detected = len(deforestation_results[0]) > 0
@@ -82,9 +100,9 @@ if __name__ == "__main__":
         # Get the base directory path
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         
-        # Set model paths
-        deforestation_model_path = os.path.join(BASE_DIR, "forest", "deforestation", "yolov8n.pt")
-        wildfire_model_path = os.path.join(BASE_DIR, "forest", "wildfire", "yolov8n.pt")
+        # Set model paths with proper path joining
+        deforestation_model_path = os.path.join(BASE_DIR, "deforestation", "deforestation_best.pt")
+        wildfire_model_path = os.path.join(BASE_DIR, "wildfire", "wildfire_best.pt")
         
         # Create forest monitoring instance
         forest_monitor = ForestMonitoring(
@@ -92,8 +110,8 @@ if __name__ == "__main__":
             wildfire_model=wildfire_model_path
         )
         
-        # For testing with a sample image
-        test_image = os.path.join(BASE_DIR, "forest", "deforestation", "input.jpg")
+        # For testing with a sample image - fix path
+        test_image = os.path.join(BASE_DIR, "deforestation", "input.jpg")
         
         # Get detection results
         print("Processing test image...")
