@@ -1,140 +1,106 @@
 # ForestDetection.py
 import os
-import cv2
 import torch
+import cv2
 from ultralytics import YOLO
-from camera import Camera  # Assumes you have a Camera base class that supplies frames
+from camera import Camera
 
-# Get the base directory path (location of this script)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Set device to MPS on Mac (if available), CUDA if available, or CPU by default
+# Set device to MPS on Mac if available, else CPU
 device = torch.device("mps" if hasattr(torch, 'mps') and torch.mps.is_available() else 
                      ("cuda" if torch.cuda.is_available() else "cpu"))
 print("Model runs on", device.type)
 
-
-class DeforestationDetection(Camera):
+class ForestMonitoring(Camera):
     """
-    This class handles deforestation detection using a YOLO model.
+    This class handles forest monitoring including deforestation and wildfire detection.
     """
-    def __init__(self, model_path=None):
+    def __init__(self, deforestation_model, wildfire_model):
         super().__init__()
-        # Use provided model path or default to relative path based on directory structure
-        if model_path is None:
-            model_path = os.path.join(BASE_DIR, "forest", "deforestation", "yolov8n.pt")
-        self.model = YOLO(model_path).to(device)
+        # Load the models
+        self.deforestation_model = YOLO(deforestation_model).to(device)
+        self.wildfire_model = YOLO(wildfire_model).to(device)
     
-    def get_deforestation_data(self):
+    def get_json_data(self):
         """
-        Captures a frame from the camera and runs the YOLO model for deforestation detection.
-        Returns the annotated image.
+        Captures a frame from the camera and runs both detection models.
+        Returns a JSON with detection results.
         """
         # Get the current frame from the camera
         img = self.get_frame()
-        # Run the YOLO model on the image
-        result = self.model(img, show_conf=False)
-        # Plot and get the annotated result image
-        result_img = result[0].plot()
-        return result_img
+        
+        # Run the deforestation detection model
+        deforestation_results = self.deforestation_model(img)
+        
+        # Run the wildfire detection model
+        wildfire_results = self.wildfire_model(img)
+        
+        # Check if deforestation is detected (if any objects are detected)
+        deforestation_detected = len(deforestation_results[0]) > 0
+        
+        # Check if wildfire is detected (if any objects are detected)
+        wildfire_detected = len(wildfire_results[0]) > 0
+        
+        return {
+            "deforestation_detected": deforestation_detected,
+            "wildfire_detected": wildfire_detected,
+            "deforestation_count": len(deforestation_results[0]),
+            "wildfire_count": len(wildfire_results[0])
+        }
     
     def process_image(self, image_path):
         """
         Process a single image file instead of using the camera.
-        Useful for testing with existing images.
+        Returns a JSON with detection results.
         """
         # Read the image file
         img = cv2.imread(image_path)
         if img is None:
             raise ValueError(f"Image not found or could not be read: {image_path}")
         
-        # Run the YOLO model on the image
-        result = self.model(img, show_conf=False)
-        # Plot and get the annotated result image
-        result_img = result[0].plot()
+        # Run the deforestation detection model
+        deforestation_results = self.deforestation_model(img)
         
-        # Save the result in the same directory as the input
-        output_path = os.path.join(os.path.dirname(image_path), "result_img.jpg")
-        cv2.imwrite(output_path, result_img)
+        # Run the wildfire detection model
+        wildfire_results = self.wildfire_model(img)
         
-        return result_img
+        # Check if deforestation is detected
+        deforestation_detected = len(deforestation_results[0]) > 0
+        
+        # Check if wildfire is detected
+        wildfire_detected = len(wildfire_results[0]) > 0
+        
+        return {
+            "deforestation_detected": deforestation_detected,
+            "wildfire_detected": wildfire_detected,
+            "deforestation_count": len(deforestation_results[0]),
+            "wildfire_count": len(wildfire_results[0])
+        }
 
-
-class WildfireDetection(Camera):
-    """
-    This class handles wildfire detection using a YOLO model.
-    """
-    def __init__(self, model_path=None):
-        super().__init__()
-        # Use provided model path or default to relative path based on directory structure
-        if model_path is None:
-            model_path = os.path.join(BASE_DIR, "forest", "wildfire", "yolov8n.pt")
-        self.model = YOLO(model_path).to(device)
-    
-    def get_wildfire_data(self):
-        """
-        Captures a frame from the camera and runs the YOLO model for wildfire detection.
-        Returns the annotated image.
-        """
-        # Get the current frame from the camera
-        img = self.get_frame()
-        # Run the YOLO model on the frame
-        result = self.model(img, show_conf=False)
-        # Get the result image with predictions drawn
-        result_img = result[0].plot()
-        return result_img
-    
-    def process_image(self, image_path):
-        """
-        Process a single image file instead of using the camera.
-        Useful for testing with existing images.
-        """
-        # Read the image file
-        img = cv2.imread(image_path)
-        if img is None:
-            raise ValueError(f"Image not found or could not be read: {image_path}")
-        
-        # Run the YOLO model on the image
-        result = self.model(img, show_conf=False)
-        # Plot and get the annotated result image
-        result_img = result[0].plot()
-        
-        # Save the result in the same directory as the input
-        output_path = os.path.join(os.path.dirname(image_path), "result_img.jpg")
-        cv2.imwrite(output_path, result_img)
-        
-        return result_img
-
-
-# Example usage (for testing purposes):
+# Example usage
 if __name__ == "__main__":
     try:
-        # Use relative paths based on the directory structure
+        # Get the base directory path
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        
+        # Set model paths
         deforestation_model_path = os.path.join(BASE_DIR, "forest", "deforestation", "yolov8n.pt")
         wildfire_model_path = os.path.join(BASE_DIR, "forest", "wildfire", "yolov8n.pt")
         
-        # For testing with sample images instead of camera
-        deforestation_test_image = os.path.join(BASE_DIR, "forest", "deforestation", "input.jpg")
-        wildfire_test_image = os.path.join(BASE_DIR, "forest", "wildfire", "input.jpg")
+        # Create forest monitoring instance
+        forest_monitor = ForestMonitoring(
+            deforestation_model=deforestation_model_path,
+            wildfire_model=wildfire_model_path
+        )
         
-        # Create detector instances
-        deforestation_detector = DeforestationDetection(model_path=deforestation_model_path)
-        wildfire_detector = WildfireDetection(model_path=wildfire_model_path)
+        # For testing with a sample image
+        test_image = os.path.join(BASE_DIR, "forest", "deforestation", "input.jpg")
         
-        # Test with sample images
-        print("Processing deforestation test image...")
-        deforestation_result = deforestation_detector.process_image(deforestation_test_image)
+        # Get detection results
+        print("Processing test image...")
+        results = forest_monitor.process_image(test_image)
         
-        print("Processing wildfire test image...")
-        wildfire_result = wildfire_detector.process_image(wildfire_test_image)
-        
-        # Display the results
-        cv2.imshow("Deforestation Detection", deforestation_result)
-        cv2.imshow("Wildfire Detection", wildfire_result)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        
-        print("Testing complete!")
+        # Display results
+        print("Results:", results)
         
     except Exception as e:
         print(f"Error during testing: {e}")
